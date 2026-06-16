@@ -13,6 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 @Entity
 @Table(name = "users", uniqueConstraints = { @UniqueConstraint(columnNames = "email") })
@@ -61,7 +62,13 @@ public class User implements UserDetails { // already implements userDetails
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singletonList(new SimpleGrantedAuthority(this.role.name()));
+        // 1. Convert your Enum role to a String using .name()
+        String roleName = this.role.name();
+
+        // 2. Safely apply string formatting with the ROLE_ prefix
+        String authorityName = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+
+        return List.of(new SimpleGrantedAuthority(authorityName));
     }
 
     // ----REUSABLE SECURITY CONTRACT METHODS ---

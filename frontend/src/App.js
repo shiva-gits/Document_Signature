@@ -1,23 +1,26 @@
-import logo from './logo.svg';
+import React from 'react';
+import MainDashboard from './components/mainDashboard';
 import './App.css';
 
 function App() {
+  /**
+   * 🔐 CONFIGURATION MATRIX
+   * Replace the token string below with the fresh JWT token you generated 
+   * from Postman after logging into your Validator account.
+   */
+  const sessionConfig = {
+    docId: 10,                          // The ID of the file you verified in Postman
+    signerId: 2,                        // The target user who needs to sign it
+    token: "PASTE_YOUR_ACTIVE_VALIDATOR_JWT_TOKEN_HERE"
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div className="App" style={{ margin: 0, padding: 0, overflow: 'hidden', height: '100vh', width: '100vw' }}>
+      <MainDashboard
+        docId={sessionConfig.docId}
+        signerId={sessionConfig.signerId}
+        token={sessionConfig.token}
+      />
     </div>
   );
 }

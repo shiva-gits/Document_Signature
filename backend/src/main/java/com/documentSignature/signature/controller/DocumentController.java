@@ -130,14 +130,63 @@ public class DocumentController {
      */
 
     @GetMapping("/details/{id}")
-    @PreAuthorize("hasAnyRole('VALIDATOR','ROLE_VALIDATOR', 'SIGNER', WITNESS)")
+    @PreAuthorize("hasAnyAuthority('ROLE_VALIDATOR', 'ROLE_SIGNER', 'ROLE_WITNESS')") // <-- Safe to add this back now!
+    public ResponseEntity<?> getDocumentDetails(@PathVariable("id") Long id) {
+        try {
+            var docOpt = documentRepository.findById(id);
+            if (docOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(java.util.Map.of("error", "Document not found for ID: " + id));
+            }
 
-    public ResponseEntity<?> getDocumentDetails(@PathVariable Long id) {
-        return documentRepository.findById(id)
-                .<ResponseEntity<?>>map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body("Error: Document metadata not found in DB ledger"));
+            com.documentSignature.signature.model.Document doc = docOpt.get();
+
+            // This flat map structure prevents Jackson from crashing on security contexts!
+            java.util.Map<String, Object> simplifiedResponse = java.util.Map.of(
+                    "id", doc.getId(),
+                    "fileName", doc.getFileName() != null ? doc.getFileName() : "",
+                    "filePath", doc.getFilePath() != null ? doc.getFilePath() : "",
+                    "fileType", doc.getFileType() != null ? doc.getFileType() : "",
+                    "uploadTime", doc.getUploadTime() != null ? doc.getUploadTime().toString() : "",
+                    "uploaderEmail", doc.getUploadedBy() != null ? doc.getUploadedBy().getEmail() : "Unknown");
+
+            return ResponseEntity.ok(simplifiedResponse);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(java.util.Map.of("error", "Exception in processing logic: " + e.getMessage()));
+        }
     }
+    // @GetMapping("/details/{id}")
+    // @PreAuthorize("hasAnyRole('VALIDATOR','ROLE_VALIDATOR', 'SIGNER', 'WITNESS')
+    // or hasAnyAuthority('VALIDATOR', 'ROLE_VALIDATOR')")
+
+    // public ResponseEntity<?> getDocumentDetails(@PathVariable Long id) {
+    // return documentRepository.findById(id)
+    // .<ResponseEntity<?>>map(ResponseEntity::ok)
+    // .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+    // .body("Error: Document metadata not found in DB ledger"));
+    // }
+    // @GetMapping("/details/{id}")
+    // public ResponseEntity<?> getDocumentDetails(@PathVariable Long id) {
+    // // 1. Extract the active authorities from Spring's security context memory
+    // var authentication =
+    // org.springframework.security.core.context.SecurityContextHolder.getContext()
+    // .getAuthentication();
+    // var authorities = authentication.getAuthorities();
+
+    // // 2. Print them out to your IDE terminal console so you can see them live
+    // System.out.println("DEBUG: Current User Roles in Session Context -> " +
+    // authorities);
+
+    // // 3. Return them directly to Postman as a 200 OK response to read them
+    // // instantly
+    // return ResponseEntity.ok(java.util.Map.of(
+    // "message", "Temporary bypass active!",
+    // "username", authentication.getName(),
+    // "roles_detected_by_spring",
+    // authorities.stream().map(Object::toString).toList()));
+    // }
 
     /**
      * 3. Stream Physical file for frontend preview
@@ -145,8 +194,8 @@ public class DocumentController {
      */
 
     @GetMapping("/preview/{id}")
-    @PreAuthorize("hasAnyRole('VALIDATOR', 'SIGNER', 'WITNESS')")
-    public ResponseEntity<?> previewDocumentFile(@PathVariable Long id) {
+    @PreAuthorize("hasAnyRole('VALIDATOR', 'SIGNER', 'WITNESS') or hasAnyAuthority('VALIDATOR', 'ROLE_VALIDATOR')")
+    public ResponseEntity<?> previewDocumentFile(@PathVariable("id") Long id) {
         try {
             Document document = documentRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("File target record reference not found."));
@@ -171,4 +220,26 @@ public class DocumentController {
                     .body("Streaming pipeline extraction failed: " + e.getMessage());
         }
     }
+
+    // diagnosis
+
+    // @GetMapping("/diagnose-user")
+    // public ResponseEntity<?> diagnoseActiveUser() {
+    // // 1. Grab the active security session data directly from Spring's heart
+    // var auth =
+    // org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+
+    // // 2. Safely extract the authorities to see exactly what strings live there
+    // var authoritiesList = auth != null && auth.getAuthorities() != null
+    // ? auth.getAuthorities().stream().map(Object::toString).toList()
+    // : java.util.Collections.emptyList();
+
+    // // 3. Return everything cleanly to Postman
+    // return ResponseEntity.ok(java.util.Map.of(
+    // "authenticated_principal_name", auth != null ? auth.getName() :
+    // "anonymousUser",
+    // "authorities_granted_in_session", authoritiesList,
+    // "is_authenticated_status", auth != null && auth.isAuthenticated()));
+    // }
+
 }

@@ -71,17 +71,46 @@ public class SignatureController {
      * precisely
      */
 
+    /**
+     * Display signature placeholders
+     * endpoint rule: accessible by all roles. returns raw coordinates array blocks
+     * so that the frontend canvas engine can draw yellow placeholder highlights
+     * precisely
+     */
     @GetMapping("/document/{docId}")
     @PreAuthorize("hasAnyRole('VALIDATOR', 'SIGNER', 'WITNESS')")
-    public ResponseEntity<?> getDocumentSignatures(@PathVariable Long docId) {
+    public ResponseEntity<?> getDocumentSignatures(@PathVariable("docId") Long docId) { // Added explicit parameter
+                                                                                        // mapping
 
         try {
-
             List<Signature> signatures = signatureRepository.findByDocumentId(docId);
-            return ResponseEntity.ok(signatures);
+
+            // Map entities to a flat, safe structure to prevent Jackson serialization
+            // recursion crashes
+            List<java.util.Map<String, Object>> flatSignatures = signatures.stream().map(sig -> {
+                java.util.Map<String, Object> map = new java.util.HashMap<>();
+                map.put("id", sig.getId());
+                map.put("x", sig.getX());
+                map.put("y", sig.getY());
+                map.put("page", sig.getPage());
+                map.put("status", sig.getStatus() != null ? sig.getStatus().toString() : "PENDING");
+
+                // Expose safe strings from nested objects instead of the whole entity
+                map.put("docId", sig.getDocument() != null ? sig.getDocument().getId() : null);
+                map.put("signerId", sig.getSigner() != null ? sig.getSigner().getId() : null);
+                map.put("signerEmail", sig.getSigner() != null ? sig.getSigner().getEmail() : "Unknown");
+                map.put("signerName", sig.getSigner() != null ? sig.getSigner().getName() : "Unknown");
+
+                return map;
+            }).toList();
+
+            return ResponseEntity.ok(flatSignatures);
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error fetching structural signature array matching ID: " + e.getMessage());
+                    .body(java.util.Map.of(
+                            "error", "Error fetching structural signature array matching ID",
+                            "details", e.getMessage() != null ? e.getMessage() : e.toString()));
         }
     }
 }

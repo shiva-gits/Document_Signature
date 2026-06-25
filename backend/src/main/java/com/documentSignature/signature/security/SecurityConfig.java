@@ -36,7 +36,12 @@ public class SecurityConfig {
 
                 // 2. control which paths are public vs private
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll() // open access for signup and login APIs
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/error").permitAll() // open access for signup and login APIs
+
+                        // forcing spring security to allow this specific get path explicitly
+                        .requestMatchers("/api/documents/**").authenticated()
+                        .requestMatchers("/api/signatures/**").authenticated()
                         .anyRequest().authenticated() // Everything else requires a valid JWT
                 )
 

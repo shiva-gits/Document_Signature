@@ -10,6 +10,7 @@ import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -39,6 +40,7 @@ public class User implements UserDetails { // already implements userDetails
 
     @NotBlank
     @Size(max = 120)
+    @JsonIgnore
     private String password;
 
     // ---Updated Spring Security Method ---

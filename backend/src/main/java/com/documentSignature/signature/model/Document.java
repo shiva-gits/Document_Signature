@@ -3,11 +3,13 @@ package com.documentSignature.signature.model;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
  * Reusable entity mapping uploaded document metadata
  * storing physical files directly in database BLOBs degrades performance
- * instead, save the file to disk/cloud storage and reference it's file path here.
+ * instead, save the file to disk/cloud storage and reference it's file path
+ * here.
  */
 
 @Entity
@@ -17,16 +19,16 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 
-public class Document{
+public class Document {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id; //primary key
+    private Long id; // primary key
 
     @Column(nullable = false)
     private String fileName;
 
     @Column(nullable = false)
-    private String filePath; //storage location descriptor reference string
+    private String filePath; // storage location descriptor reference string
 
     @Column(nullable = false)
     private String fileType; // expecting "application/pdf"
@@ -39,5 +41,7 @@ public class Document{
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "uploaded_by_id", nullable = false)
+    @JsonIgnoreProperties({ "authorities", "password", "username", "accountNonLocked", "accountNonExpired",
+            "credentialsNonExpired", "enabled" })
     private User uploadedBy;
 }

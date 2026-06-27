@@ -1,6 +1,8 @@
 package com.documentSignature.signature.controller;
 
 import com.documentSignature.signature.service.PdfStampingService;
+import com.documentSignature.signature.service.AuditLogService;
+import jakarta.servlet.http.HttpServletRequest;
 
 import org.apache.catalina.connector.Response;
 import org.springframework.http.HttpStatus;
@@ -15,9 +17,11 @@ import java.util.Map;
 public class DocumentSigningController {
 
     private final PdfStampingService pdfStampingService;
+    private final AuditLogService auditLogService;
 
-    public DocumentSigningController(PdfStampingService pdfStampingService) {
+    public DocumentSigningController(PdfStampingService pdfStampingService, AuditLogService auditLogService) {
         this.pdfStampingService = pdfStampingService;
+        this.auditLogService = auditLogService;
     }
 
     /**
@@ -25,13 +29,15 @@ public class DocumentSigningController {
      */
 
     @PostMapping("/finalize-signature")
-    public ResponseEntity<?> finalizeDocumentSignature(@RequestBody Map<String, Object> requestPayload) {
+    public ResponseEntity<?> finalizeDocumentSignature(@RequestBody Map<String, Object> requestPayload,
+            HttpServletRequest request) {
         try {
             // extract and parse the parameters sent from the dashboard ui interaction layer
             float x = Float.parseFloat(requestPayload.get("xCoordinate").toString());
             float y = Float.parseFloat(requestPayload.get("yCoordinate").toString());
             int page = Integer.parseInt(requestPayload.get("PageNumber").toString());
             String signer = requestPayload.get("signerName").toString();
+            Long docId = Long.parseLong(requestPayload.get("documentId").toString());
 
             // setup temporary hardcoded testing files on our desktop filesystem
             String sourceDocument = "C:/Users/shiva/Desktop/shivajava/documentSignature/frontend/public/blank.pdf";
@@ -45,6 +51,10 @@ public class DocumentSigningController {
             // service layer
 
             if (!isStreamingSuccessfully) {
+
+                // extracting client IP using our utility and trigger the audit save!
+                String clientIp = AuditLogController.getClientIpAddress(request);
+                auditLogService.logEvent(docId, "SIGN", signer, clientIp);
                 return ResponseEntity.ok(Map.of(
                         "status", "SUCCESS",
                         "message", "Document permanently stamped and locked successfully!",

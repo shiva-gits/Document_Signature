@@ -1,27 +1,46 @@
 import React from 'react';
-import MainDashboard from './components/mainDashboard';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import MainDashboard from './components/mainDashboard'; // Points to your existing component file
 import './App.css';
 
 function App() {
-  /**
-   * 🔐 CONFIGURATION MATRIX
-   * Replace the token string below with the fresh JWT token you generated 
-   * from Postman after logging into your Validator account.
-   */
-  const sessionConfig = {
-    docId: 10,                          // The ID of the file you verified in Postman
-    signerId: 2,                        // The target user who needs to sign it
-    token: "PASTE_YOUR_ACTIVE_VALIDATOR_JWT_TOKEN_HERE"
+
+  // Helper function to dynamically check auth status on each route change
+  const checkAuth = () => {
+    const token = localStorage.getItem('token');
+    return !!token; // Returns true if a token exists, false otherwise
   };
 
   return (
-    <div className="App" style={{ margin: 0, padding: 0, overflow: 'hidden', height: '100vh', width: '100vw' }}>
-      <MainDashboard
-        docId={sessionConfig.docId}
-        signerId={sessionConfig.signerId}
-        token={sessionConfig.token}
-      />
-    </div>
+    <Router>
+      <Routes>
+        {/* Public Authentication Routes */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        {/* Protected Dashboard Route: 
+          If authenticated, it mounts your MainDashboard workspace component.
+          If unauthenticated, it drops traffic directly back to /login.
+        */}
+        <Route
+          path="/dashboard"
+          element={
+            checkAuth() ? (
+              <div className="App" style={{ margin: 0, padding: 0, overflow: 'hidden', height: '100vh', width: '100vw' }}>
+                <MainDashboard />
+              </div>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        {/* Catch-all global fallback: Redirects root or broken routes to login */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Router>
   );
 }
 

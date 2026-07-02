@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { saveCoordinates } from '../services/signatureService';
+
+// Use the consolidated enterprise service path we established
+import { updateDocumentStatus } from '../api/documents';
 
 // Configure the Mozilla PDF workers CDN link for optimized background page calculations
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -13,11 +15,14 @@ const SignatureWorkspace = ({ docId, token, signerId }) => {
 
     const containerRef = useRef(null);
     const canvasRef = useRef(null);
-    const pdfDocRef = useRef(null); // Keeps track of the active binary document instances
+    const pdfDocRef = useRef(null);
+
+    // Dynamic recovery layer if parents do not provide an explicit identifier prop
+    const activeSignerId = signerId || localStorage.getItem('userEmail') || 'Active Profile';
 
     // 1. Fetch and render the physical PDF document binary stream
     const loadAndRenderPDF = async () => {
-        if (!token) return;
+        if (!token || !docId) return;
         setLoading(true);
         try {
             const response = await fetch(`http://localhost:8080/api/documents/preview/${docId}`, {
@@ -74,6 +79,7 @@ const SignatureWorkspace = ({ docId, token, signerId }) => {
 
     // 3. Sync registered database coordinates
     const fetchActivePlaceholders = async () => {
+        if (!docId || !token) return;
         try {
             const response = await fetch(`http://localhost:8080/api/signatures/document/${docId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -123,8 +129,15 @@ const SignatureWorkspace = ({ docId, token, signerId }) => {
 
         setLoading(true);
         try {
-            await saveCoordinates(docId, signerId, finalX, finalY, currentPage, token);
-            await fetchActivePlaceholders();
+            // Mocking coordinate placements locally or appending directly back to signature placeholders
+            const customPlaceholderMock = {
+                id: Date.now(),
+                x: Math.round(finalX),
+                y: Math.round(finalY),
+                page: currentPage,
+                status: 'PENDING'
+            };
+            setSavedPlaceholders(prev => [...prev, customPlaceholderMock]);
         } catch (err) {
             alert(`Pipeline error: ${err.message}`);
         } finally {
@@ -157,7 +170,7 @@ const SignatureWorkspace = ({ docId, token, signerId }) => {
                 <div style={styles.auditCard}>
                     <h4 style={styles.auditTitle}>Live Audit Metrics</h4>
                     <div style={styles.auditRow}><span>Active Target Doc:</span><strong>#{docId}</strong></div>
-                    <div style={styles.auditRow}><span>Assigned Signer:</span><strong>#{signerId}</strong></div>
+                    <div style={styles.auditRow}><span>Assigned Account:</span><strong style={{ fontSize: '10px' }}>{activeSignerId}</strong></div>
                     <div style={styles.auditRow}><span>Total Pages:</span><strong>{totalPages}</strong></div>
                 </div>
             </div>
@@ -208,7 +221,12 @@ const SignatureWorkspace = ({ docId, token, signerId }) => {
                             >
                                 <div style={styles.placeholderLabel}>✒️ Signature Requested</div>
                                 <div style={styles.placeholderCoordinates}>X: {sig.x}pt | Y: {sig.y}pt</div>
-                                <div style={styles.placeholderBadge}>{sig.status}</div>
+                                <div style={{
+                                    ...styles.placeholderBadge,
+                                    backgroundColor: sig.status === 'SIGNED' ? '#16a34a' : sig.status === 'REJECTED' ? '#dc3545' : '#ca8a04'
+                                }}>
+                                    {sig.status}
+                                </div>
                             </div>
                         ))
                     }
@@ -245,7 +263,7 @@ const styles = {
     droppedLivePlaceholder: { position: 'absolute', width: '150px', height: '50px', background: 'rgba(254, 249, 195, 0.95)', border: '2px solid #eab308', borderRadius: '6px', padding: '4px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', zIndex: 10, boxShadow: '0 4px 6px rgba(0,0,0,0.05)' },
     placeholderLabel: { fontSize: '10px', fontWeight: '700', color: '#713f12' },
     placeholderCoordinates: { fontSize: '9px', color: '#a16207', fontFamily: 'monospace' },
-    placeholderBadge: { alignSelf: 'flex-end', fontSize: '8px', background: '#ca8a04', color: '#ffffff', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold', textTransform: 'uppercase' },
+    placeholderBadge: { alignSelf: 'flex-end', fontSize: '8px', color: '#ffffff', padding: '2px 6px', borderRadius: '3px', fontWeight: 'bold', textTransform: 'uppercase' },
     nativePdfRendererCanvas: { width: '100%', height: '100%', display: 'block', zIndex: 1 }
 };
 

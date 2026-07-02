@@ -6,5 +6,6 @@ package com.documentSignature.signature.model;
 
 public enum SignatureStatus {
     PENDING,
-    SIGNED
+    SIGNED,
+    REJECTED
 }

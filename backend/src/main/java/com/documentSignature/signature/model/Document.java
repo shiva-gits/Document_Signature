@@ -44,4 +44,14 @@ public class Document {
     @JsonIgnoreProperties({ "authorities", "password", "username", "accountNonLocked", "accountNonExpired",
             "credentialsNonExpired", "enabled" })
     private User uploadedBy;
+
+    // singature status enum mapping
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private SignatureStatus status = SignatureStatus.PENDING;
+
+    @Column(length = 500)
+    private String rejectionReason;
+
+    private LocalDateTime statusChangedAt;
 }

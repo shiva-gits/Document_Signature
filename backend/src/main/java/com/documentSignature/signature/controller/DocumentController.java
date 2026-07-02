@@ -2,9 +2,16 @@ package com.documentSignature.signature.controller;
 
 import com.documentSignature.signature.model.Document;
 import com.documentSignature.signature.model.User;
+import com.documentSignature.signature.model.SignatureStatus;
 import com.documentSignature.signature.repository.DocumentRepository;
 import com.documentSignature.signature.repository.UserRepository;
+
+import jakarta.servlet.http.HttpServletRequest;
+
+import com.documentSignature.signature.dto.StatusUpdateRequest;
 import lombok.*;
+
+import org.apache.catalina.connector.Response;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -148,6 +155,9 @@ public class DocumentController {
                     "filePath", doc.getFilePath() != null ? doc.getFilePath() : "",
                     "fileType", doc.getFileType() != null ? doc.getFileType() : "",
                     "uploadTime", doc.getUploadTime() != null ? doc.getUploadTime().toString() : "",
+                    "status", doc.getStatus() != null ? doc.getStatus().name() : "PENDING",
+                    "rejectionReason", doc.getRejectionReason() != null ? doc.getRejectionReason() : "",
+                    "statusChangedAt", doc.getStatusChangedAt() != null ? doc.getStatusChangedAt().toString() : "",
                     "uploaderEmail", doc.getUploadedBy() != null ? doc.getUploadedBy().getEmail() : "Unknown");
 
             return ResponseEntity.ok(simplifiedResponse);
@@ -218,6 +228,69 @@ public class DocumentController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Streaming pipeline extraction failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Signature status flow management endpoint
+     * patches the document signing lifecycle (PENDING -> SIGNED -> REJECTED)
+     */
+    @PostMapping("/{id}/status")
+    @org.springframework.transaction.annotation.Transactional // Ensures the data modifications are atomic
+    @PreAuthorize("hasAnyRole('VALIDATOR', 'SIGNER', 'WITNESS')") // access rules based on workflow scope
+    public ResponseEntity<?> updatedSignatureStatus(
+            @PathVariable("id") Long id,
+            @RequestBody StatusUpdateRequest request,
+            HttpServletRequest servletRequest) {
+
+        try {
+            // 1. core sanity check on incoming request properties
+            if (request.getStatus() == null
+                    || !List.of(SignatureStatus.SIGNED, SignatureStatus.REJECTED).contains(request.getStatus())) {
+                return ResponseEntity.badRequest().body("Error: Invalid status payload. choose SIGNED  or REJECTED");
+            }
+
+            // 2. fetch target document record from the DB
+            Document document = documentRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Target document reference not found."));
+
+            // 3. workflow lockdown gaurd: terminal states are read only immutable entities
+            if (document.getStatus() == SignatureStatus.SIGNED || document.getStatus() == SignatureStatus.REJECTED) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body("Workflow closed: document is already in a terminal " + document.getStatus() + "status.");
+
+            }
+
+            // 4. conditional rule check: rejection mandates a textual reason context
+            if (request.getStatus() == SignatureStatus.REJECTED) {
+                if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                            .body("Workflow validation failure: A Rejection reason is required for REJECTED status.");
+                }
+
+                document.setRejectionReason(request.getRejectionReason().trim());
+            }
+
+            // 5. commmit state adjustments
+            document.setStatus(request.getStatus());
+            document.setStatusChangedAt(LocalDateTime.now());
+
+            // persist modified tracking structures down to DB layout tables
+
+            documentRepository.save(document);
+
+            // 6. Complience integration hooks
+            // passes state change attributes to the servlet request container for the
+            // interceptor filter of audit trails
+
+            servletRequest.setAttribute("auditAction", request.getStatus().name());
+            servletRequest.setAttribute("auditTargetId", id);
+
+            return ResponseEntity.ok("Document status updated successfully to: " + request.getStatus());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Workflow execution error: Processing runtime anamoly: " + e.getMessage());
         }
     }
 
